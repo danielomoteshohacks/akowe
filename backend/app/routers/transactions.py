@@ -22,6 +22,7 @@ from typing import Optional
 from datetime import date
 from app.routers.auth import get_current_user
 from app.config.database import get_supabase_with_token, get_supabase_admin
+from app.services.exchange_rate import get_today_rate
 
 security = HTTPBearer()
 
@@ -131,22 +132,13 @@ async def create_transaction(
         )
 
     try:
-        # Get today's exchange rate to store USD equivalent
-        rate_response = (
-            get_supabase_admin()
-            .table("exchange_rates")
-            .select("usd_to_ngn")
-            .order("date", desc=True)
-            .limit(1)
-            .execute()
-        )
-
-        usd_amount = None
-        if rate_response.data:
-            rate = float(rate_response.data[0]["usd_to_ngn"])
-            # Convert kobo to naira then to USD cents
+        # Get today's exchange rate and calculate USD equivalent in cents
+        try:
+            rate = get_today_rate()
             naira_amount = request.amount / 100
             usd_amount = int((naira_amount / rate) * 100)
+        except Exception:
+            usd_amount = None
 
         # Insert the transaction
         # user_id comes from the verified JWT token — not from the request

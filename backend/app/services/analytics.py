@@ -59,9 +59,12 @@ def calculate_pnl(user_id: str, from_date: str = None, to_date: str = None, toke
     # ----------------------------------------
     # Step 2: Calculate totals
     # Amounts are stored in kobo — convert to naira
+    # USD amounts are stored in cents — convert to dollars
     # ----------------------------------------
     total_income_kobo = 0
     total_expense_kobo = 0
+    total_income_usd_cents = 0
+    total_expense_usd_cents = 0
 
     # Track spending by category
     income_by_category = defaultdict(int)   # category_name: total_kobo
@@ -74,6 +77,7 @@ def calculate_pnl(user_id: str, from_date: str = None, to_date: str = None, toke
         amount = t["amount"]  # In kobo
         tx_type = t["type"]
         tx_date = t["transaction_date"]  # "2025-01-15"
+        usd_cents = t.get("usd_amount") or 0
 
         # Get month key from date string
         month_key = tx_date[:7]  # "2025-01"
@@ -85,20 +89,26 @@ def calculate_pnl(user_id: str, from_date: str = None, to_date: str = None, toke
 
         if tx_type == "income":
             total_income_kobo += amount
+            total_income_usd_cents += usd_cents
             income_by_category[category_name] += amount
             monthly_data[month_key]["income"] += amount
 
         elif tx_type == "expense":
             total_expense_kobo += amount
+            total_expense_usd_cents += usd_cents
             expense_by_category[category_name] += amount
             monthly_data[month_key]["expense"] += amount
 
     # ----------------------------------------
-    # Step 3: Convert to naira and calculate metrics
+    # Step 3: Convert to naira/dollars and calculate metrics
     # ----------------------------------------
     total_income = total_income_kobo / 100
     total_expense = total_expense_kobo / 100
     net_profit = total_income - total_expense
+
+    total_income_usd = total_income_usd_cents / 100
+    total_expense_usd = total_expense_usd_cents / 100
+    net_profit_usd = total_income_usd - total_expense_usd
 
     # Profit margin = (net profit / total income) * 100
     # Handle division by zero if no income yet
@@ -188,7 +198,10 @@ def calculate_pnl(user_id: str, from_date: str = None, to_date: str = None, toke
             "profit_margin": profit_margin,
             "transaction_count": len(transactions),
             "health_status": health_status,
-            "health_message": health_message
+            "health_message": health_message,
+            "total_income_usd": round(total_income_usd, 2),
+            "total_expense_usd": round(total_expense_usd, 2),
+            "net_profit_usd": round(net_profit_usd, 2),
         },
         "monthly_breakdown": monthly_breakdown,
         "top_expenses": top_expenses,

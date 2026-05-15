@@ -7,6 +7,7 @@ import {
   deleteTransaction,
   logout,
   getUserFromStorage,
+  getExchangeRate,
 } from '../services/api'
 import { useTheme } from '../App'
 
@@ -106,6 +107,7 @@ export default function Dashboard() {
 
   const [summary, setSummary] = useState(null)
   const [transactions, setTransactions] = useState([])
+  const [exchangeRate, setExchangeRate] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -125,18 +127,22 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     setLoading(true)
     setError('')
-    try {
-      const [summaryData, txData] = await Promise.all([
-        getSummary(),
-        getTransactions({ limit: 10 }),
-      ])
-      setSummary(summaryData)
-      setTransactions(txData.transactions || [])
-    } catch {
+
+    const [summaryResult, txResult, rateResult] = await Promise.allSettled([
+      getSummary(),
+      getTransactions({ limit: 10 }),
+      getExchangeRate(),
+    ])
+
+    if (summaryResult.status === 'fulfilled') setSummary(summaryResult.value)
+    if (txResult.status === 'fulfilled') setTransactions(txResult.value.transactions || [])
+    if (rateResult.status === 'fulfilled') setExchangeRate(rateResult.value)
+
+    if (summaryResult.status === 'rejected' || txResult.status === 'rejected') {
       setError('Could not load dashboard. Please refresh.')
-    } finally {
-      setLoading(false)
     }
+
+    setLoading(false)
   }
 
   const handleAddTransaction = async (e) => {
@@ -195,6 +201,12 @@ export default function Dashboard() {
       minimumFractionDigits: 0,
     }).format(amount || 0)
 
+  const formatUSD = (amount) =>
+    `≈ $${new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.abs(amount || 0))} USD`
+
   const healthColor = {
     healthy:   'var(--income)',
     excellent: 'var(--income)',
@@ -234,6 +246,7 @@ export default function Dashboard() {
     {
       label:     'Total Income',
       rawVal:    summary?.total_income || 0,
+      usdVal:    summary?.total_income_usd || null,
       color:     'var(--income)',
       dotColor:  'var(--income)',
       iconBg:    'var(--accent-light)',
@@ -244,6 +257,7 @@ export default function Dashboard() {
     {
       label:     'Total Expenses',
       rawVal:    summary?.total_expense || 0,
+      usdVal:    summary?.total_expense_usd || null,
       color:     'var(--expense)',
       dotColor:  'var(--expense)',
       iconBg:    'rgba(200,75,49,0.1)',
@@ -254,6 +268,7 @@ export default function Dashboard() {
     {
       label:     'Net Profit',
       rawVal:    summary?.net_profit || 0,
+      usdVal:    summary?.net_profit_usd || null,
       color:     netProfitColor,
       dotColor:  netProfitColor,
       iconBg:    'rgba(96,165,250,0.12)',
@@ -264,6 +279,7 @@ export default function Dashboard() {
     {
       label:      'Profit Margin',
       rawVal:     null,
+      usdVal:     null,
       displayVal: `${summary?.profit_margin || 0}%`,
       color:      healthColor[summary?.health_status] || 'var(--text-muted)',
       dotColor:   healthColor[summary?.health_status] || 'var(--text-muted)',
@@ -287,6 +303,11 @@ export default function Dashboard() {
           <span style={styles.navBizName} className="nav-center">
             {user?.business_name}
           </span>
+          {exchangeRate && (
+            <span style={styles.rateIndicator} className="hide-mobile">
+              1 USD = ₦{Number(exchangeRate.usd_to_ngn).toLocaleString('en-NG', { maximumFractionDigits: 0 })}
+            </span>
+          )}
         </div>
 
         <div style={styles.navRight}>
@@ -319,7 +340,7 @@ export default function Dashboard() {
 
         {/* ---- SUMMARY CARDS ---- */}
         <div style={styles.cardGrid}>
-          {cards.map(({ label, rawVal, displayVal, color, dotColor, iconBg, iconColor, Icon, cls, sub, isMargin }) => (
+          {cards.map(({ label, rawVal, displayVal, usdVal, color, dotColor, iconBg, iconColor, Icon, cls, sub, isMargin }) => (
             <div
               key={label}
               className={`summary-card elevated-card ${cls}`}
@@ -348,6 +369,10 @@ export default function Dashboard() {
                   : displayVal
                 }
               </p>
+
+              {usdVal != null && Math.abs(usdVal) > 0 && (
+                <p style={styles.usdLine}>{formatUSD(usdVal)}</p>
+              )}
 
               {isMargin && (
                 <div style={styles.marginBar}>
@@ -652,6 +677,16 @@ const styles = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  rateIndicator: {
+    fontSize: '11px',
+    color: 'var(--text-muted)',
+    fontFamily: "'DM Mono', 'Courier New', monospace",
+    fontFeatureSettings: '"tnum"',
+    marginLeft: 'auto',
+    paddingRight: '8px',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.02em',
+  },
   navRight: {
     display: 'flex',
     alignItems: 'center',
@@ -757,6 +792,14 @@ const styles = {
     margin: 0,
     letterSpacing: '-0.5px',
     lineHeight: 1.15,
+  },
+  usdLine: {
+    fontSize: '11px',
+    color: 'var(--text-muted)',
+    margin: '5px 0 0',
+    fontFamily: "'DM Mono', 'Courier New', monospace",
+    fontFeatureSettings: '"tnum"',
+    letterSpacing: '0.01em',
   },
   marginBar: {
     height: '3px',

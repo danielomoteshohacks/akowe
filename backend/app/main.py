@@ -17,7 +17,7 @@ from app.config.settings import get_settings
 
 # Import all routers
 # Each router handles a group of related endpoints
-from app.routers import auth, transactions, analytics
+from app.routers import auth, transactions, analytics, exchange_rate
 
 settings = get_settings()
 
@@ -68,6 +68,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(transactions.router)
 app.include_router(analytics.router)
+app.include_router(exchange_rate.router)
 
 
 # ============================================

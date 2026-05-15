@@ -134,6 +134,22 @@ export const getCategoriesBreakdown = async () => {
 }
 
 // ============================================
+// EXCHANGE RATE FUNCTIONS
+// ============================================
+
+export const getExchangeRate = async () => {
+  // Returns today's USD→NGN rate: { date, usd_to_ngn }
+  const response = await api.get('/exchange-rate/today')
+  return response.data
+}
+
+export const refreshExchangeRate = async () => {
+  // Forces a fresh fetch from ExchangeRate-API
+  const response = await api.post('/exchange-rate/refresh')
+  return response.data
+}
+
+// ============================================
 // HELPER FUNCTIONS
 // ============================================
 
