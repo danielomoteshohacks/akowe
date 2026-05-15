@@ -1,49 +1,47 @@
-import { useState, useEffect } from 'react'
 import './App.css'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { createContext, useContext, useLayoutEffect, useState } from 'react'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
+import Dashboard from './pages/Dashboard'
 
-const API_URL = import.meta.env.VITE_API_URL
+export const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} })
+export const useTheme = () => useContext(ThemeContext)
+
+function ProtectedRoute({ children }) {
+  const token = localStorage.getItem('akowe_token')
+  if (!token) return <Navigate to="/login" replace />
+  return children
+}
 
 function App() {
-  const [status, setStatus] = useState('Loading...')
-  const [error, setError] = useState(null)
+  const [theme, setTheme] = useState(() => localStorage.getItem('akowe_theme') || 'light')
 
-  useEffect(() => {
-    fetch(`${API_URL}/`)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json()
-      })
-      .then(data => {
-        setStatus(data.message)
-        setError(null)
-      })
-      .catch(err => {
-        setError(err.message)
-        setStatus('Could not reach backend')
-      })
-  }, [])
+  useLayoutEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('akowe_theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')
 
   return (
-    <div className="container">
-      <div className="card">
-        <h1>Akowe</h1>
-        <p className="subtitle">Financial intelligence for African businesses</p>
-        <div className="status-box">
-          {error ? (
-            <p className="error">Error: {error}</p>
-          ) : (
-            <>
-              <p className="label">Backend Status:</p>
-              <p className="message">{status}</p>
-            </>
-          )}
-        </div>
-        <div className="info">
-          <p>🚀 Phase 0 is working!</p>
-          <p>Frontend (React) → Backend (FastAPI) → Supabase</p>
-        </div>
-      </div>
-    </div>
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </ThemeContext.Provider>
   )
 }
 
